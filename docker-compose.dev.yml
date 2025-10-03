@@ -1,6 +1,5 @@
 
 services:
-  # --- BANCOS DE DADOS ---
   sqlserver-db:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: marketplace-sqlserver
@@ -25,21 +24,19 @@ services:
     volumes:
       - mongo-data:/data/db
 
-  # --- MICROSERVIÇOS ---
   orders-svc:
     container_name: orders-svc
     build:
       context: ../constructioncon-marketplace-orders-svc
     restart: always
     ports:
-      - "3020:8080" # Porta do Spring Boot
+      - "3020:8080"
     depends_on:
       - sqlserver-db
     environment:
       - SPRING_DATASOURCE_URL=jdbc:sqlserver://srv-constructioncon-marketplace.database.windows.net:1433;database=ordersdb;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;
       - SPRING_DATASOURCE_USERNAME=sqladmin@srv-constructioncon-marketplace
       - SPRING_DATASOURCE_PASSWORD=MQ>3$8Vk?3?V
-      # Outras envs necessárias para o Spring
 
   catalog-svc:
     container_name: catalog-svc
@@ -87,8 +84,12 @@ services:
     restart: always
     ports:
       - "3001:3001"
+    volumes:
+      - ../constructioncon-marketplace-microfrontend:/app
+      - /app/node_modules # Adiciona um volume anônimo para evitar que o node_modules local sobrescreva o do contêiner
     environment:
       - PORT=3001
+    command: pnpm dev
     depends_on:
       - bff
 
