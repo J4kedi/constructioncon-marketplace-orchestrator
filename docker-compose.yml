@@ -1,0 +1,98 @@
+
+services:
+  # --- BANCOS DE DADOS ---
+  sqlserver-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: marketplace-sqlserver
+    ports:
+      - "1433:1433"
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=yourStrong(!)Password
+    restart: always
+    volumes:
+      - sqlserver-data:/var/opt/mssql/
+
+  mongo-db:
+    image: mongo:latest
+    container_name: marketplace-mongo
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=admin
+    restart: always
+    volumes:
+      - mongo-data:/data/db
+
+  # --- MICROSERVIÇOS ---
+  orders-svc:
+    container_name: orders-svc
+    build:
+      context: ../constructioncon-marketplace-orders-svc
+      dockerfile: ./orders-svc/orders-svc/Dockerfile
+    restart: always
+    ports:
+      - "3020:8080" # Porta do Spring Boot
+    depends_on:
+      - sqlserver-db
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:sqlserver://srv-constructioncon-marketplace.database.windows.net:1433;database=ordersdb;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;
+      - SPRING_DATASOURCE_USERNAME=sqladmin@srv-constructioncon-marketplace
+      - SPRING_DATASOURCE_PASSWORD=MQ>3$8Vk?3?V
+      # Outras envs necessárias para o Spring
+
+  catalog-svc:
+    container_name: catalog-svc
+    build:
+      context: ../constructioncon-marketplace-catalog-svc
+    restart: always
+    ports:
+      - "3002:3002"
+    depends_on:
+      - mongo-db
+    environment:
+      - DATABASE_URL=mongodb+srv://admin:M9CS9mtl8WC3303I@cluster-constructioncon.o38so4z.mongodb.net/catalog?retryWrites=true&w=majority&appName=Cluster-constructioncon-catalog-svc
+      - PORT=3002
+
+  bff:
+    container_name: bff
+    build:
+      context: ../constructioncon-marketplace-bff
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - orders-svc
+      - catalog-svc
+    environment:
+      - PORT=8080
+      - SERVICE_ORDERS_URL=http://orders-svc:8080
+      - SERVICE_CATALOG_URL=http://catalog-svc:3002
+      - SERVICE_QUOTE_URL=http://quote-fn:3004
+
+  quote-fn:
+    container_name: quote-fn
+    build:
+      context: ../constructioncon-marketplace-quote-fn
+    restart: always
+    ports:
+      - "3004:3004"
+    environment:
+      - PORT=3004
+
+  frontend:
+    container_name: frontend
+    build:
+      context: ../constructioncon-marketplace-microfrontend
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+    depends_on:
+      - bff
+
+volumes:
+  sqlserver-data:
+  mongo-data:
